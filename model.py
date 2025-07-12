@@ -5,7 +5,7 @@ import torchvision.models as models
 
 # PartCrafter architecture
 class PartCrafterModel(nn.Module):
-    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8, num_blocks=6):
+    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8, num_blocks=6, pretrained: bool = True):
         """
         PartCrafter model: generates part-wise shape tokens with local-global attention.
         - max_parts: maximum number of parts
@@ -13,13 +13,14 @@ class PartCrafterModel(nn.Module):
         - d_model: dimension of token embeddings and transformer features
         - n_heads: number of attention heads for multi-head attention
         - num_blocks: number of transformer blocks (alternate local and global attention)
+        - pretrained: загрузить ли предобученные веса ResNet
         """
         super(PartCrafterModel, self).__init__()
         self.max_parts = max_parts
         self.tokens_per_part = tokens_per_part
         self.d_model = d_model
         # Image encoder: use ResNet18 conv layers to get feature map (512 channels, 7x7 spatial for 224x224 input)
-        resnet = models.resnet18(pretrained=True)
+        resnet = models.resnet18(pretrained=pretrained)
         # Use feature extractor (everything except avgpool & fc)
         self.image_conv = nn.Sequential(
             resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool,
@@ -94,15 +95,16 @@ class PartCrafterModel(nn.Module):
 
 # Baseline: ShapeAsPoints++
 class ShapeAsPointsPlusPlusModel(nn.Module):
-    def __init__(self, points_per_shape=512):
+    def __init__(self, points_per_shape=512, pretrained: bool = True):
         """
         ShapeAsPoints++: generates a whole shape point cloud from image (no part structure).
         - points_per_shape: number of points to output for the whole shape.
+        - pretrained: загрузить ли предобученные веса ResNet
         """
         super(ShapeAsPointsPlusPlusModel, self).__init__()
         self.points_per_shape = points_per_shape
         # Image encoder: we use ResNet18 and take the final average pooled features as a global image descriptor
-        resnet = models.resnet18(pretrained=True)
+        resnet = models.resnet18(pretrained=pretrained)
         # We will use the entire model up to avgpool to get a 512-dim feature
         self.feature_extractor = nn.Sequential(
             resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool,
@@ -129,17 +131,18 @@ class ShapeAsPointsPlusPlusModel(nn.Module):
 
 # Baseline: PointCRAFT++
 class PointCraftPlusPlusModel(nn.Module):
-    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8, num_blocks=6):
+    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8, num_blocks=6, pretrained: bool = True):
         """
         PointCRAFT++: generates each part independently (no global part-part attention).
         - Similar parameters as PartCrafterModel, but uses only local attention blocks.
+        - pretrained: загрузить ли предобученные веса ResNet
         """
         super(PointCraftPlusPlusModel, self).__init__()
         self.max_parts = max_parts
         self.tokens_per_part = tokens_per_part
         self.d_model = d_model
         # Image encoder (ResNet18 conv features)
-        resnet = models.resnet18(pretrained=True)
+        resnet = models.resnet18(pretrained=pretrained)
         self.image_conv = nn.Sequential(
             resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool,
             resnet.layer1, resnet.layer2, resnet.layer3, resnet.layer4
