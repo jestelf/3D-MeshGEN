@@ -52,9 +52,13 @@ if __name__ == "__main__":
     train_size = len(dataset) - val_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
-                              shuffle=True, drop_last=True)
+                              shuffle=True, drop_last=True,
+                              num_workers=args.num_workers,
+                              pin_memory=args.pin_memory)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size,
-                            shuffle=False, drop_last=False)
+                            shuffle=False, drop_last=False,
+                            num_workers=args.num_workers,
+                            pin_memory=args.pin_memory)
     # Instantiate model
     if args.model == 'partcrafter':
         model = PartCrafterModel(max_parts=args.max_parts,
