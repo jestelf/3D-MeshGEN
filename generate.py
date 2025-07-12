@@ -1,5 +1,6 @@
 import torch
 import argparse
+import numpy as np
 from PIL import Image
 import torchvision.transforms as T
 from model import PartCrafterModel, ShapeAsPointsPlusPlusModel, PointCraftPlusPlusModel
