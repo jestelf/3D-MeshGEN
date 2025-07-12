@@ -5,7 +5,8 @@ import torchvision.models as models
 
 # PartCrafter architecture
 class PartCrafterModel(nn.Module):
-    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8, num_blocks=6, pretrained: bool = True):
+    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8, num_blocks=6, freeze_backbone: bool = True):
+
         """
         PartCrafter model: generates part-wise shape tokens with local-global attention.
         - max_parts: maximum number of parts
@@ -13,6 +14,7 @@ class PartCrafterModel(nn.Module):
         - d_model: dimension of token embeddings and transformer features
         - n_heads: number of attention heads for multi-head attention
         - num_blocks: number of transformer blocks (alternate local and global attention)
+        - freeze_backbone: freeze pretrained image backbone weights if True
         - pretrained: загрузить ли предобученные веса ResNet
         """
         super(PartCrafterModel, self).__init__()
@@ -27,7 +29,8 @@ class PartCrafterModel(nn.Module):
             resnet.layer1, resnet.layer2, resnet.layer3, resnet.layer4
         )
         for p in self.image_conv.parameters():
-            p.requires_grad = False  # freeze image backbone to retain pretrained features (optional)
+            # Optionally freeze pretrained backbone
+            p.requires_grad = not freeze_backbone
         self.img_proj = nn.Linear(512, d_model)  # project image feature dimension to match tokens
         # Learnable initial tokens for each part (max_parts * tokens_per_part, d_model)
         self.init_part_tokens = nn.Parameter(torch.randn(max_parts * tokens_per_part, d_model))
@@ -95,10 +98,11 @@ class PartCrafterModel(nn.Module):
 
 # Baseline: ShapeAsPoints++
 class ShapeAsPointsPlusPlusModel(nn.Module):
-    def __init__(self, points_per_shape=512, pretrained: bool = True):
+    def __init__(self, points_per_shape=512, freeze_backbone: bool = True):
         """
         ShapeAsPoints++: generates a whole shape point cloud from image (no part structure).
         - points_per_shape: number of points to output for the whole shape.
+        - freeze_backbone: freeze pretrained image backbone weights if True
         - pretrained: загрузить ли предобученные веса ResNet
         """
         super(ShapeAsPointsPlusPlusModel, self).__init__()
@@ -112,7 +116,8 @@ class ShapeAsPointsPlusPlusModel(nn.Module):
             resnet.avgpool  # global average pool -> [B, 512, 1, 1]
         )
         for p in self.feature_extractor.parameters():
-            p.requires_grad = False
+            # Optionally freeze pretrained backbone
+            p.requires_grad = not freeze_backbone
         self.feature_dim = 512
         # Fully connected layers to map image feature -> flattened point cloud coordinates
         hidden_dim = 1024
@@ -131,10 +136,11 @@ class ShapeAsPointsPlusPlusModel(nn.Module):
 
 # Baseline: PointCRAFT++
 class PointCraftPlusPlusModel(nn.Module):
-    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8, num_blocks=6, pretrained: bool = True):
+    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8, num_blocks=6, freeze_backbone: bool = True):
         """
         PointCRAFT++: generates each part independently (no global part-part attention).
         - Similar parameters as PartCrafterModel, but uses only local attention blocks.
+        - freeze_backbone: freeze pretrained image backbone weights if True
         - pretrained: загрузить ли предобученные веса ResNet
         """
         super(PointCraftPlusPlusModel, self).__init__()
@@ -148,7 +154,8 @@ class PointCraftPlusPlusModel(nn.Module):
             resnet.layer1, resnet.layer2, resnet.layer3, resnet.layer4
         )
         for p in self.image_conv.parameters():
-            p.requires_grad = False
+            # Optionally freeze pretrained backbone
+            p.requires_grad = not freeze_backbone
         self.img_proj = nn.Linear(512, d_model)
         # Initial tokens and part ID embeddings (similar to PartCrafter)
         self.init_part_tokens = nn.Parameter(torch.randn(max_parts * tokens_per_part, d_model))
