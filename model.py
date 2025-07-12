@@ -5,7 +5,8 @@ import torchvision.models as models
 
 # PartCrafter architecture
 class PartCrafterModel(nn.Module):
-    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8, num_blocks=6, freeze_backbone: bool = True):
+    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8,
+                 num_blocks=6, freeze_backbone: bool = True, pretrained: bool = True):
 
         """
         PartCrafter model: generates part-wise shape tokens with local-global attention.
@@ -98,7 +99,7 @@ class PartCrafterModel(nn.Module):
 
 # Baseline: ShapeAsPoints++
 class ShapeAsPointsPlusPlusModel(nn.Module):
-    def __init__(self, points_per_shape=512, freeze_backbone: bool = True):
+    def __init__(self, points_per_shape=512, freeze_backbone: bool = True, pretrained: bool = True):
         """
         ShapeAsPoints++: generates a whole shape point cloud from image (no part structure).
         - points_per_shape: number of points to output for the whole shape.
@@ -136,7 +137,8 @@ class ShapeAsPointsPlusPlusModel(nn.Module):
 
 # Baseline: PointCRAFT++
 class PointCraftPlusPlusModel(nn.Module):
-    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8, num_blocks=6, freeze_backbone: bool = True):
+    def __init__(self, max_parts=8, tokens_per_part=64, d_model=256, n_heads=8,
+                 num_blocks=6, freeze_backbone: bool = True, pretrained: bool = True):
         """
         PointCRAFT++: generates each part independently (no global part-part attention).
         - Similar parameters as PartCrafterModel, but uses only local attention blocks.
