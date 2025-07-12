@@ -32,7 +32,12 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")
     parser.add_argument('--max_parts', type=int, default=8, help="Max parts per shape (for part-based models)")
     parser.add_argument('--points_per_part', type=int, default=64, help="Points sampled per part for training")
+    parser.add_argument('--num_workers', type=int, default=0, help="\u041f\u0440\u043e\u0446\u0435\u0441\u0441\u043e\u0432-\u0440\u0430\u0431\u043e\u0447\u0438\u0445 \u0434\u043b\u044f DataLoader")
+    parser.add_argument('--pin_memory', action='store_true', help="\u0418\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c pinned memory")
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help="Device: 'cuda' or 'cpu'")
+    parser.add_argument('--freeze_backbone', dest='freeze_backbone', action='store_true', help='Freeze image backbone (default)')
+    parser.add_argument('--unfreeze_backbone', dest='freeze_backbone', action='store_false', help='Train backbone weights')
+    parser.set_defaults(freeze_backbone=True)
     args = parser.parse_args()
 
     # Load dataset and split into train/validation
@@ -50,12 +55,12 @@ if __name__ == "__main__":
                             shuffle=False, drop_last=False)
     # Instantiate model
     if args.model == 'partcrafter':
-        model = PartCrafterModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part)
+        model = PartCrafterModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part, freeze_backbone=args.freeze_backbone)
     elif args.model == 'pointcraft':
-        model = PointCraftPlusPlusModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part)
+        model = PointCraftPlusPlusModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part, freeze_backbone=args.freeze_backbone)
     elif args.model == 'shapeaspoints':
         total_points = args.max_parts * args.points_per_part  # points_per_shape used in dataset
-        model = ShapeAsPointsPlusPlusModel(points_per_shape=total_points)
+        model = ShapeAsPointsPlusPlusModel(points_per_shape=total_points, freeze_backbone=args.freeze_backbone)
     model = model.to(args.device)
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
 
