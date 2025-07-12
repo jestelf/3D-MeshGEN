@@ -44,6 +44,16 @@ class PartCrafterModel(nn.Module):
         # Layer normalization for stability
         self.norm1 = nn.ModuleList([nn.LayerNorm(d_model) for _ in range(num_blocks)])
         self.norm2 = nn.ModuleList([nn.LayerNorm(d_model) for _ in range(num_blocks)])
+        # Feed-forward layers for each transformer block
+        self.ffn_layers = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(d_model, d_model * 4),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(d_model * 4, d_model)
+            )
+            for _ in range(num_blocks)
+        ])
         self.num_blocks = num_blocks
         # Final linear to decode each token to a 3D point coordinate
         self.token_to_coord = nn.Linear(d_model, 3)
@@ -91,6 +101,7 @@ class PartCrafterModel(nn.Module):
             # Cross-attention: shape tokens attend to image tokens (image features as keys/values)
             attn_cross, _ = self.cross_attn(query=shape_tokens, key=img_tokens, value=img_tokens)
             shape_tokens = self.norm2[i](shape_tokens + attn_cross)
+            shape_tokens = shape_tokens + self.ffn_layers[i](shape_tokens)
         # Decode each token to a 3D point coordinate
         coords = self.token_to_coord(shape_tokens)  # [B, max_parts*tokens_per_part, 3]
         # Reshape to separate parts: [B, max_parts, tokens_per_part, 3]
@@ -167,6 +178,16 @@ class PointCraftPlusPlusModel(nn.Module):
         self.cross_attn = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
         self.norm1 = nn.ModuleList([nn.LayerNorm(d_model) for _ in range(num_blocks)])
         self.norm2 = nn.ModuleList([nn.LayerNorm(d_model) for _ in range(num_blocks)])
+        # Feed-forward layers per block
+        self.ffn_layers = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(d_model, d_model * 4),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(d_model * 4, d_model)
+            )
+            for _ in range(num_blocks)
+        ])
         self.num_blocks = num_blocks
         # Output decoder
         self.token_to_coord = nn.Linear(d_model, 3)
@@ -197,6 +218,7 @@ class PointCraftPlusPlusModel(nn.Module):
             # Cross-attention with image for all tokens combined
             attn_cross, _ = self.cross_attn(query=shape_tokens, key=img_tokens, value=img_tokens)
             shape_tokens = self.norm2[i](shape_tokens + attn_cross)
+            shape_tokens = shape_tokens + self.ffn_layers[i](shape_tokens)
         coords = self.token_to_coord(shape_tokens)                   # [B, max_parts*tokens_per_part, 3]
         coords = coords.view(B, self.max_parts, self.tokens_per_part, 3)  # [B, max_parts, tokens_per_part, 3]
         return coords
