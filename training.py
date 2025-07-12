@@ -41,12 +41,12 @@ if __name__ == "__main__":
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
     # Instantiate model
     if args.model == 'partcrafter':
-        model = PartCrafterModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part)
+        model = PartCrafterModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part, pretrained=True)
     elif args.model == 'pointcraft':
-        model = PointCraftPlusPlusModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part)
+        model = PointCraftPlusPlusModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part, pretrained=True)
     elif args.model == 'shapeaspoints':
         total_points = args.max_parts * args.points_per_part  # points_per_shape used in dataset
-        model = ShapeAsPointsPlusPlusModel(points_per_shape=total_points)
+        model = ShapeAsPointsPlusPlusModel(points_per_shape=total_points, pretrained=True)
     model = model.to(args.device)
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
 
