@@ -30,6 +30,7 @@ if __name__ == "__main__":
     elif args.model == 'shapeaspoints':
         total_points = args.max_parts * args.points_per_part
         model = ShapeAsPointsPlusPlusModel(points_per_shape=total_points, freeze_backbone=args.freeze_backbone)
+
     model.load_state_dict(torch.load(args.checkpoint, map_location=args.device))
     model = model.to(args.device)
     model.eval()
