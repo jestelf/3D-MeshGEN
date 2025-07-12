@@ -17,16 +17,19 @@ if __name__ == "__main__":
     parser.add_argument('--points_per_part', type=int, default=64, help="Points per part (must match training)")
     parser.add_argument('--output', type=str, default="output.ply", help="Output PLY file name for the generated point cloud")
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
+    parser.add_argument('--freeze_backbone', dest='freeze_backbone', action='store_true', help='Freeze image backbone (default)')
+    parser.add_argument('--unfreeze_backbone', dest='freeze_backbone', action='store_false', help='Load backbone with gradients enabled')
+    parser.set_defaults(freeze_backbone=True)
     args = parser.parse_args()
 
     # Initialize the model architecture (same parameters as during training)
     if args.model == 'partcrafter':
-        model = PartCrafterModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part)
+        model = PartCrafterModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part, freeze_backbone=args.freeze_backbone)
     elif args.model == 'pointcraft':
-        model = PointCraftPlusPlusModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part)
+        model = PointCraftPlusPlusModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part, freeze_backbone=args.freeze_backbone)
     elif args.model == 'shapeaspoints':
         total_points = args.max_parts * args.points_per_part
-        model = ShapeAsPointsPlusPlusModel(points_per_shape=total_points)
+        model = ShapeAsPointsPlusPlusModel(points_per_shape=total_points, freeze_backbone=args.freeze_backbone)
     model.load_state_dict(torch.load(args.checkpoint, map_location=args.device))
     model = model.to(args.device)
     model.eval()
