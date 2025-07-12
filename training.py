@@ -1,6 +1,6 @@
 import torch
 from torch import optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 import argparse
 
 # Import the dataset and models defined above
@@ -35,10 +35,19 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help="Device: 'cuda' or 'cpu'")
     args = parser.parse_args()
 
-    # Load dataset
-    dataset = PartDataset(root_dir=args.data_dir, categories=[args.category] if args.category else None,
-                           max_parts=args.max_parts, points_per_part=args.points_per_part)
-    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
+    # Load dataset and split into train/validation
+    dataset = PartDataset(root_dir=args.data_dir,
+                          categories=[args.category] if args.category else None,
+                          max_parts=args.max_parts,
+                          points_per_part=args.points_per_part)
+    val_ratio = 0.1
+    val_size = max(1, int(len(dataset) * val_ratio))
+    train_size = len(dataset) - val_size
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
+                              shuffle=True, drop_last=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size,
+                            shuffle=False, drop_last=False)
     # Instantiate model
     if args.model == 'partcrafter':
         model = PartCrafterModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part)
@@ -54,7 +63,7 @@ if __name__ == "__main__":
     model.train()
     for epoch in range(1, args.epochs+1):
         total_loss = 0.0
-        for batch in loader:
+        for batch in train_loader:
             imgs, part_pts, shape_pts, part_mask = batch
             imgs = imgs.to(args.device)                          # [B, 3, 224, 224]
             part_pts = part_pts.to(args.device)                  # [B, max_parts, pts_per_part, 3]
@@ -86,8 +95,38 @@ if __name__ == "__main__":
             batch_loss.backward()
             optimizer.step()
             total_loss += batch_loss.item() * B
-        avg_loss = total_loss / len(loader.dataset)
+        avg_loss = total_loss / len(train_loader.dataset)
         print(f"Epoch {epoch}/{args.epochs}, Training ChamferLoss = {avg_loss:.6f}")
+
+        # Validation loop
+        val_total_loss = 0.0
+        model.eval()
+        with torch.no_grad():
+            for batch in val_loader:
+                imgs, part_pts, shape_pts, part_mask = batch
+                imgs = imgs.to(args.device)
+                part_pts = part_pts.to(args.device)
+                shape_pts = shape_pts.to(args.device)
+                part_mask = part_mask.to(args.device)
+                outputs = model(imgs)
+                batch_loss = 0.0
+                B = imgs.size(0)
+                for i in range(B):
+                    if args.model == 'shapeaspoints':
+                        pred_points = outputs[i]
+                        gt_points = shape_pts[i]
+                    else:
+                        pred_parts = outputs[i]
+                        gt_points = shape_pts[i]
+                        valid_mask = part_mask[i]
+                        pred_points = pred_parts[valid_mask].reshape(-1, 3)
+                    loss_i = chamfer_distance(pred_points, gt_points)
+                    batch_loss += loss_i
+                batch_loss = batch_loss / B
+                val_total_loss += batch_loss.item() * B
+        val_avg_loss = val_total_loss / len(val_loader.dataset)
+        print(f"Epoch {epoch}/{args.epochs}, Validation ChamferLoss = {val_avg_loss:.6f}")
+        model.train()
         # Save checkpoint periodically
         if epoch % 10 == 0:
             ckpt_path = f"{args.model}_epoch{epoch}.pth"
