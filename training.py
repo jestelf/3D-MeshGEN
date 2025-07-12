@@ -7,20 +7,50 @@ import argparse
 from dataloader import PartDataset
 from model import PartCrafterModel, ShapeAsPointsPlusPlusModel, PointCraftPlusPlusModel
 
-def chamfer_distance(pc1, pc2):
+def chamfer_distance(pc1, pc2, mask1=None, mask2=None):
+    """\
+    Вычисляет Chamfer Distance между двумя облаками точек.
+
+    Parameters
+    ----------
+    pc1 : Tensor[B, N1, 3]
+        Первое облако точек.
+    pc2 : Tensor[B, N2, 3]
+        Второе облако точек.
+    mask1 : Tensor[B, N1], optional
+        Маска для pc1 (точки, где False, игнорируются).
+    mask2 : Tensor[B, N2], optional
+        Маска для pc2.
+
+    Returns
+    -------
+    Tensor
+        Среднее значение Chamfer Distance по батчу.
     """
-    Compute Chamfer Distance between two point clouds pc1 and pc2.
-    pc1: Tensor [N1,3], pc2: Tensor [N2,3]
-    Returns mean of squared distances.
-    """
-    # Pairwise distance matrix
-    diff = pc1.unsqueeze(1) - pc2.unsqueeze(0)              # [N1, N2, 3]
-    dist_sq = torch.sum(diff * diff, dim=2)                 # [N1, N2]
-    # For each point in one cloud find nearest point in the other
-    min_dist1, _ = torch.min(dist_sq, dim=1)                # [N1]
-    min_dist2, _ = torch.min(dist_sq, dim=0)                # [N2]
-    # Average of nearest distances (symmetrized)
-    return torch.mean(min_dist1) + torch.mean(min_dist2)
+
+    dist = torch.cdist(pc1, pc2)  # [B, N1, N2]
+
+    if mask1 is not None:
+        mask1_expand = mask1.unsqueeze(2).expand_as(dist)
+        dist = dist.masked_fill(~mask1_expand, float('inf'))
+    if mask2 is not None:
+        mask2_expand = mask2.unsqueeze(1).expand_as(dist)
+        dist = dist.masked_fill(~mask2_expand, float('inf'))
+
+    min_dist1 = dist.min(dim=2).values  # [B, N1]
+    min_dist2 = dist.min(dim=1).values  # [B, N2]
+
+    if mask1 is not None:
+        cd1 = (min_dist1.pow(2) * mask1).sum(dim=1) / mask1.sum(dim=1).clamp(min=1)
+    else:
+        cd1 = min_dist1.pow(2).mean(dim=1)
+
+    if mask2 is not None:
+        cd2 = (min_dist2.pow(2) * mask2).sum(dim=1) / mask2.sum(dim=1).clamp(min=1)
+    else:
+        cd2 = min_dist2.pow(2).mean(dim=1)
+
+    return (cd1 + cd2).mean()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train PartCrafter or baseline models")
@@ -91,29 +121,21 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             # Forward pass
             outputs = model(imgs)
-            # Compute loss (Chamfer distance)
-            batch_loss = 0.0
-            B = imgs.size(0)
-            for i in range(B):
-                if args.model == 'shapeaspoints':
-                    pred_points = outputs[i]              # [points_per_shape, 3]
-                    gt_points = shape_pts[i]              # [points_per_shape, 3]
-                else:
-                    # Part-based models
-                    pred_parts = outputs[i]               # [max_parts, pts_per_part, 3]
-                    gt_points = shape_pts[i]              # [points_per_shape, 3]
-                    # Filter out non-existent part outputs using part_mask
-                    valid_mask = part_mask[i]             # [max_parts]
-                    # Concatenate points from all valid parts
-                    pred_points = pred_parts[valid_mask].reshape(-1, 3)
-                    # (GT shape points already include points from all real parts)
-                # Chamfer distance between pred_points and gt_points
-                loss_i = chamfer_distance(pred_points, gt_points)
-                batch_loss += loss_i
-            batch_loss = batch_loss / B
+            # Compute loss (Chamfer distance) для всего батча
+            if args.model == 'shapeaspoints':
+                pred_points = outputs                             # [B, N, 3]
+                pred_mask = None
+            else:
+                pred_parts = outputs                              # [B, max_parts, pts_per_part, 3]
+                B = pred_parts.size(0)
+                pred_points = pred_parts.view(B, -1, 3)
+                # Маска валидных токенов
+                pred_mask = part_mask.unsqueeze(-1).repeat(1, 1, args.points_per_part)
+                pred_mask = pred_mask.view(B, -1)
+            batch_loss = chamfer_distance(pred_points, shape_pts, mask1=pred_mask)
             batch_loss.backward()
             optimizer.step()
-            total_loss += batch_loss.item() * B
+            total_loss += batch_loss.item() * imgs.size(0)
         avg_loss = total_loss / len(train_loader.dataset)
         print(f"Epoch {epoch}/{args.epochs}, Training ChamferLoss = {avg_loss:.6f}")
 
@@ -128,21 +150,17 @@ if __name__ == "__main__":
                 shape_pts = shape_pts.to(args.device)
                 part_mask = part_mask.to(args.device)
                 outputs = model(imgs)
-                batch_loss = 0.0
-                B = imgs.size(0)
-                for i in range(B):
-                    if args.model == 'shapeaspoints':
-                        pred_points = outputs[i]
-                        gt_points = shape_pts[i]
-                    else:
-                        pred_parts = outputs[i]
-                        gt_points = shape_pts[i]
-                        valid_mask = part_mask[i]
-                        pred_points = pred_parts[valid_mask].reshape(-1, 3)
-                    loss_i = chamfer_distance(pred_points, gt_points)
-                    batch_loss += loss_i
-                batch_loss = batch_loss / B
-                val_total_loss += batch_loss.item() * B
+                if args.model == 'shapeaspoints':
+                    pred_points = outputs
+                    pred_mask = None
+                else:
+                    pred_parts = outputs
+                    B = pred_parts.size(0)
+                    pred_points = pred_parts.view(B, -1, 3)
+                    pred_mask = part_mask.unsqueeze(-1).repeat(1, 1, args.points_per_part)
+                    pred_mask = pred_mask.view(B, -1)
+                batch_loss = chamfer_distance(pred_points, shape_pts, mask1=pred_mask)
+                val_total_loss += batch_loss.item() * imgs.size(0)
         val_avg_loss = val_total_loss / len(val_loader.dataset)
         print(f"Epoch {epoch}/{args.epochs}, Validation ChamferLoss = {val_avg_loss:.6f}")
         model.train()

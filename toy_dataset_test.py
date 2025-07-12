@@ -36,6 +36,6 @@ loader = DataLoader(pd, batch_size=1)
 for imgs, part_pts, shape_pts, part_mask in loader:
     model = ShapeAsPointsPlusPlusModel(points_per_shape=16)
     pred = model(imgs)
-    loss = chamfer_distance(pred[0], shape_pts[0])
+    loss = chamfer_distance(pred, shape_pts)
     print("Chamfer loss:", loss.item())
     break
