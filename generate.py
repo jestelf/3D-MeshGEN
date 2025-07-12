@@ -19,17 +19,27 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--freeze_backbone', dest='freeze_backbone', action='store_true', help='Freeze image backbone (default)')
     parser.add_argument('--unfreeze_backbone', dest='freeze_backbone', action='store_false', help='Load backbone with gradients enabled')
-    parser.set_defaults(freeze_backbone=True)
+    parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='Use pretrained ResNet weights (default)')
+    parser.add_argument('--no_pretrained', dest='pretrained', action='store_false', help='Do not load pretrained weights')
+    parser.set_defaults(freeze_backbone=True, pretrained=True)
     args = parser.parse_args()
 
     # Initialize the model architecture (same parameters as during training)
     if args.model == 'partcrafter':
-        model = PartCrafterModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part, freeze_backbone=args.freeze_backbone)
+        model = PartCrafterModel(max_parts=args.max_parts,
+                                 tokens_per_part=args.points_per_part,
+                                 freeze_backbone=args.freeze_backbone,
+                                 pretrained=args.pretrained)
     elif args.model == 'pointcraft':
-        model = PointCraftPlusPlusModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part, freeze_backbone=args.freeze_backbone)
+        model = PointCraftPlusPlusModel(max_parts=args.max_parts,
+                                        tokens_per_part=args.points_per_part,
+                                        freeze_backbone=args.freeze_backbone,
+                                        pretrained=args.pretrained)
     elif args.model == 'shapeaspoints':
         total_points = args.max_parts * args.points_per_part
-        model = ShapeAsPointsPlusPlusModel(points_per_shape=total_points, freeze_backbone=args.freeze_backbone)
+        model = ShapeAsPointsPlusPlusModel(points_per_shape=total_points,
+                                           freeze_backbone=args.freeze_backbone,
+                                           pretrained=args.pretrained)
 
     model.load_state_dict(torch.load(args.checkpoint, map_location=args.device))
     model = model.to(args.device)

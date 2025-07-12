@@ -37,7 +37,9 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help="Device: 'cuda' or 'cpu'")
     parser.add_argument('--freeze_backbone', dest='freeze_backbone', action='store_true', help='Freeze image backbone (default)')
     parser.add_argument('--unfreeze_backbone', dest='freeze_backbone', action='store_false', help='Train backbone weights')
-    parser.set_defaults(freeze_backbone=True)
+    parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='Use pretrained ResNet weights (default)')
+    parser.add_argument('--no_pretrained', dest='pretrained', action='store_false', help='Do not load pretrained weights')
+    parser.set_defaults(freeze_backbone=True, pretrained=True)
     args = parser.parse_args()
 
     # Load dataset and split into train/validation
@@ -55,12 +57,20 @@ if __name__ == "__main__":
                             shuffle=False, drop_last=False)
     # Instantiate model
     if args.model == 'partcrafter':
-        model = PartCrafterModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part, freeze_backbone=args.freeze_backbone)
+        model = PartCrafterModel(max_parts=args.max_parts,
+                                 tokens_per_part=args.points_per_part,
+                                 freeze_backbone=args.freeze_backbone,
+                                 pretrained=args.pretrained)
     elif args.model == 'pointcraft':
-        model = PointCraftPlusPlusModel(max_parts=args.max_parts, tokens_per_part=args.points_per_part, freeze_backbone=args.freeze_backbone)
+        model = PointCraftPlusPlusModel(max_parts=args.max_parts,
+                                        tokens_per_part=args.points_per_part,
+                                        freeze_backbone=args.freeze_backbone,
+                                        pretrained=args.pretrained)
     elif args.model == 'shapeaspoints':
         total_points = args.max_parts * args.points_per_part  # points_per_shape used in dataset
-        model = ShapeAsPointsPlusPlusModel(points_per_shape=total_points, freeze_backbone=args.freeze_backbone)
+        model = ShapeAsPointsPlusPlusModel(points_per_shape=total_points,
+                                           freeze_backbone=args.freeze_backbone,
+                                           pretrained=args.pretrained)
     model = model.to(args.device)
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
 
