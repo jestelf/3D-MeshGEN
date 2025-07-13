@@ -51,8 +51,14 @@ class PartDataset(Dataset):
                     part_files = sorted(glob.glob(os.path.join(part_dir, "*.obj")))
                     if not part_files:
                         part_files = sorted(glob.glob(os.path.join(part_dir, "*.ply")))
+                    if not part_files:
+                        part_files = sorted(glob.glob(os.path.join(part_dir, "*.off")))
                 else:
                     part_files = sorted(glob.glob(os.path.join(shape_dir, "*.obj")))
+                    if not part_files:
+                        part_files = sorted(glob.glob(os.path.join(shape_dir, "*.ply")))
+                    if not part_files:
+                        part_files = sorted(glob.glob(os.path.join(shape_dir, "*.off")))
                 if not part_files:
                     continue
                 num_parts = len(part_files)
