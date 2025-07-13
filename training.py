@@ -138,6 +138,8 @@ if __name__ == "__main__":
     parser.add_argument('--points_per_part', type=int, default=64, help="Points sampled per part for training")
     parser.add_argument('--fscore_thresh', type=float, default=0.01,
                         help="\u041f\u043e\u0440\u043e\u0433 \u0434\u043b\u044f \u0432\u044b\u0447\u0438\u0441\u043b\u0435\u043d\u0438\u044f F-Score")
+    parser.add_argument('--cache_dir', type=str, default=None,
+                        help="\u0414\u0438\u0440\u0435\u043a\u0442\u043e\u0440\u0438\u044f \u0434\u043b\u044f \u043a\u044d\u0448\u0430 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u0430\u043d\u043d\u044b\u0445 \u043c\u0435\u0448\u0435\u0439")
     parser.add_argument('--num_workers', type=int, default=0, help="\u041f\u0440\u043e\u0446\u0435\u0441\u0441\u043e\u0432-\u0440\u0430\u0431\u043e\u0447\u0438\u0445 \u0434\u043b\u044f DataLoader")
     parser.add_argument('--pin_memory', action='store_true', help="\u0418\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c pinned memory")
     parser.add_argument('--log_file', type=str, default=None, help='\u0424\u0430\u0439\u043b \u0434\u043b\u044f \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u044f \u043b\u043e\u0433\u043e\u0432')
@@ -170,7 +172,8 @@ if __name__ == "__main__":
     dataset = PartDataset(root_dir=args.data_dir,
                           categories=[args.category] if args.category else None,
                           max_parts=args.max_parts,
-                          points_per_part=args.points_per_part)
+                          points_per_part=args.points_per_part,
+                          cache_dir=args.cache_dir)
     val_ratio = 0.1
     val_size = max(1, int(len(dataset) * val_ratio))
     train_size = len(dataset) - val_size
