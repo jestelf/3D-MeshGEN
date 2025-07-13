@@ -51,6 +51,10 @@ def chamfer_distance(pc1, pc2, mask1=None, mask2=None):
     if mask2 is not None:
         min_dist2 = min_dist2.masked_fill(~mask2, 0.0)
 
+    # Заменяем все нефинитные значения нулями, чтобы избежать переполнения
+    min_dist1 = torch.where(torch.isfinite(min_dist1), min_dist1, torch.zeros_like(min_dist1))
+    min_dist2 = torch.where(torch.isfinite(min_dist2), min_dist2, torch.zeros_like(min_dist2))
+
     if mask1 is not None:
         cd1 = (min_dist1.pow(2) * mask1).sum(dim=1) / mask1.sum(dim=1).clamp(min=1)
     else:
