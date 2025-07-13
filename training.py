@@ -290,8 +290,6 @@ if __name__ == "__main__":
         model.train()
         if args.save_every > 0 and epoch % args.save_every == 0:
             ckpt_path = f"{args.model}_epoch{epoch}.pth"
-        if args.save_every > 0 and epoch % args.save_every == 0:
-            ckpt_path = f"{args.model}_epoch{epoch}.pth"
             save_checkpoint(model, optimizer, scheduler, epoch, ckpt_path)
             logger.info(f"Сохранён чекпоинт: {ckpt_path}")
 
