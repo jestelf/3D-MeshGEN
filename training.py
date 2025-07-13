@@ -175,11 +175,16 @@ if __name__ == "__main__":
                           points_per_part=args.points_per_part,
                           cache_dir=args.cache_dir)
     val_ratio = 0.1
-    val_size = max(1, int(len(dataset) * val_ratio))
+    val_size = int(len(dataset) * val_ratio)
     train_size = len(dataset) - val_size
+    if train_size == 0:
+        train_size = 1
+        val_size = len(dataset) - train_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+    train_drop_last = len(train_dataset) >= args.batch_size
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
-                              shuffle=True, drop_last=True,
+                              shuffle=True, drop_last=train_drop_last,
                               num_workers=args.num_workers,
                               pin_memory=args.pin_memory)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size,
