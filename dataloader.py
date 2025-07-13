@@ -112,6 +112,16 @@ class PartDataset(Dataset):
                     part_meshes.append(mesh)
             num_parts = len(part_meshes)
 
+            if part_meshes:
+                import numpy as np
+                all_v = np.concatenate([m.vertices for m in part_meshes], axis=0)
+                center = all_v.mean(axis=0)
+                max_rad = np.linalg.norm(all_v - center, axis=1).max()
+                if max_rad == 0:
+                    max_rad = 1.0
+                for m in part_meshes:
+                    m.vertices = (m.vertices - center) / max_rad
+
             part_pts_list = []
             for mesh in part_meshes:
                 pts = mesh.sample(self.points_per_part).astype(float)
