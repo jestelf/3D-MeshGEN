@@ -47,6 +47,11 @@ def chamfer_distance(pc1, pc2, mask1=None, mask2=None):
     min_dist2 = dist.min(dim=1).values  # [B, N2]
 
     if mask1 is not None:
+        min_dist1 = min_dist1.masked_fill(~mask1, 0.0)
+    if mask2 is not None:
+        min_dist2 = min_dist2.masked_fill(~mask2, 0.0)
+
+    if mask1 is not None:
         cd1 = (min_dist1.pow(2) * mask1).sum(dim=1) / mask1.sum(dim=1).clamp(min=1)
     else:
         cd1 = min_dist1.pow(2).mean(dim=1)
