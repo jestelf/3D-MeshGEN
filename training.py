@@ -4,6 +4,9 @@ from torch.utils.data import DataLoader, random_split
 import argparse
 import random
 import numpy as np
+import logging
+import sys
+from tqdm.auto import tqdm
 
 # Import the dataset and models defined above
 from dataloader import PartDataset
@@ -115,6 +118,7 @@ if __name__ == "__main__":
                         help="\u041f\u043e\u0440\u043e\u0433 \u0434\u043b\u044f \u0432\u044b\u0447\u0438\u0441\u043b\u0435\u043d\u0438\u044f F-Score")
     parser.add_argument('--num_workers', type=int, default=0, help="\u041f\u0440\u043e\u0446\u0435\u0441\u0441\u043e\u0432-\u0440\u0430\u0431\u043e\u0447\u0438\u0445 \u0434\u043b\u044f DataLoader")
     parser.add_argument('--pin_memory', action='store_true', help="\u0418\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c pinned memory")
+    parser.add_argument('--log_file', type=str, default=None, help='\u0424\u0430\u0439\u043b \u0434\u043b\u044f \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u044f \u043b\u043e\u0433\u043e\u0432')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help="Device: 'cuda' or 'cpu'")
     parser.add_argument('--freeze_backbone', dest='freeze_backbone', action='store_true', help='Freeze image backbone (default)')
     parser.add_argument('--unfreeze_backbone', dest='freeze_backbone', action='store_false', help='Train backbone weights')
@@ -122,6 +126,14 @@ if __name__ == "__main__":
     parser.add_argument('--no_pretrained', dest='pretrained', action='store_false', help='Do not load pretrained weights')
     parser.set_defaults(freeze_backbone=True, pretrained=True)
     args = parser.parse_args()
+
+    log_handlers = [logging.StreamHandler(sys.stdout)]
+    if args.log_file:
+        log_handlers.append(logging.FileHandler(args.log_file))
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s - %(levelname)s - %(message)s',
+                        handlers=log_handlers)
+    logger = logging.getLogger(__name__)
 
     if args.seed is not None:
         torch.manual_seed(args.seed)
@@ -173,7 +185,7 @@ if __name__ == "__main__":
     model.train()
     for epoch in range(1, args.epochs+1):
         total_loss = 0.0
-        for batch in train_loader:
+        for batch in tqdm(train_loader, desc=f"Train {epoch}/{args.epochs}"):
             imgs, part_pts, shape_pts, part_mask = batch
             imgs = imgs.to(args.device)                          # [B, 3, 224, 224]
             part_pts = part_pts.to(args.device)                  # [B, max_parts, pts_per_part, 3]
@@ -198,14 +210,14 @@ if __name__ == "__main__":
             optimizer.step()
             total_loss += batch_loss.item() * imgs.size(0)
         avg_loss = total_loss / len(train_loader.dataset)
-        print(f"Epoch {epoch}/{args.epochs}, Training ChamferLoss = {avg_loss:.6f}")
+        logger.info(f"Epoch {epoch}/{args.epochs}, Training ChamferLoss = {avg_loss:.6f}")
 
         # Validation loop
         val_total_loss = 0.0
         val_total_fscore = 0.0
         model.eval()
         with torch.no_grad():
-            for batch in val_loader:
+            for batch in tqdm(val_loader, desc=f"Val {epoch}/{args.epochs}"):
                 imgs, part_pts, shape_pts, part_mask = batch
                 imgs = imgs.to(args.device)
                 part_pts = part_pts.to(args.device)
@@ -227,7 +239,7 @@ if __name__ == "__main__":
                 val_total_fscore += batch_f.item() * imgs.size(0)
         val_avg_loss = val_total_loss / len(val_loader.dataset)
         val_avg_f = val_total_fscore / len(val_loader.dataset)
-        print(f"Epoch {epoch}/{args.epochs}, Validation ChamferLoss = {val_avg_loss:.6f}, F-Score = {val_avg_f:.4f}")
+        logger.info(f"Epoch {epoch}/{args.epochs}, Validation ChamferLoss = {val_avg_loss:.6f}, F-Score = {val_avg_f:.4f}")
         if scheduler is not None:
             scheduler.step()
         model.train()
@@ -235,7 +247,7 @@ if __name__ == "__main__":
         if epoch % 10 == 0:
             ckpt_path = f"{args.model}_epoch{epoch}.pth"
             torch.save(model.state_dict(), ckpt_path)
-            print(f"Saved checkpoint: {ckpt_path}")
+            logger.info(f"Saved checkpoint: {ckpt_path}")
     # Save final model
     torch.save(model.state_dict(), f"{args.model}_final.pth")
-    print("Training complete, model saved.")
+    logger.info("Training complete, model saved.")
