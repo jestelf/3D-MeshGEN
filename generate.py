@@ -16,6 +16,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_parts', type=int, default=8, help="Max parts (must match training)")
     parser.add_argument('--points_per_part', type=int, default=64, help="Points per part (must match training)")
     parser.add_argument('--output', type=str, default="output.ply", help="Output PLY file name for the generated point cloud")
+    parser.add_argument('--obj_output', type=str, default=None, help="Optional OBJ file name")
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--freeze_backbone', dest='freeze_backbone', action='store_true', help='Freeze image backbone (default)')
     parser.add_argument('--unfreeze_backbone', dest='freeze_backbone', action='store_false', help='Load backbone with gradients enabled')
@@ -89,3 +90,9 @@ if __name__ == "__main__":
         for (x,y,z), (r,g,b) in zip(points, colors):
             f.write(f"{x:.4f} {y:.4f} {z:.4f} {r:d} {g:d} {b:d}\n")
     print(f"Saved generated shape to {args.output}")
+    if args.obj_output:
+        with open(args.obj_output, 'w') as f:
+            for (x, y, z), (r, g, b) in zip(points, colors):
+                f.write(f"v {x:.4f} {y:.4f} {z:.4f} {r:d} {g:d} {b:d}\n")
+        print(f"Также сохранён OBJ: {args.obj_output}")
+

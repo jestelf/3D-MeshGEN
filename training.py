@@ -2,6 +2,8 @@ import torch
 from torch import optim
 from torch.utils.data import DataLoader, random_split
 import argparse
+import random
+import numpy as np
 
 # Import the dataset and models defined above
 from dataloader import PartDataset
@@ -103,6 +105,10 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, default=50, help="Number of training epochs")
     parser.add_argument('--batch_size', type=int, default=8, help="Training batch size")
     parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")
+    parser.add_argument('--lr_schedule', choices=['step', 'cosine'], default=None,
+                        help='Тип LR scheduler: step или cosine')
+    parser.add_argument('--seed', type=int, default=None,
+                        help='Фиксировать начальное значение генератора случайных чисел')
     parser.add_argument('--max_parts', type=int, default=8, help="Max parts per shape (for part-based models)")
     parser.add_argument('--points_per_part', type=int, default=64, help="Points sampled per part for training")
     parser.add_argument('--fscore_thresh', type=float, default=0.01,
@@ -116,6 +122,11 @@ if __name__ == "__main__":
     parser.add_argument('--no_pretrained', dest='pretrained', action='store_false', help='Do not load pretrained weights')
     parser.set_defaults(freeze_backbone=True, pretrained=True)
     args = parser.parse_args()
+
+    if args.seed is not None:
+        torch.manual_seed(args.seed)
+        random.seed(args.seed)
+        np.random.seed(args.seed)
 
     # Load dataset and split into train/validation
     dataset = PartDataset(root_dir=args.data_dir,
@@ -152,6 +163,11 @@ if __name__ == "__main__":
                                            pretrained=args.pretrained)
     model = model.to(args.device)
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
+    scheduler = None
+    if args.lr_schedule == 'step':
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
+    elif args.lr_schedule == 'cosine':
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     # Training loop
     model.train()
@@ -212,6 +228,8 @@ if __name__ == "__main__":
         val_avg_loss = val_total_loss / len(val_loader.dataset)
         val_avg_f = val_total_fscore / len(val_loader.dataset)
         print(f"Epoch {epoch}/{args.epochs}, Validation ChamferLoss = {val_avg_loss:.6f}, F-Score = {val_avg_f:.4f}")
+        if scheduler is not None:
+            scheduler.step()
         model.train()
         # Save checkpoint periodically
         if epoch % 10 == 0:
