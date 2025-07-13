@@ -7,6 +7,7 @@ import numpy as np
 import logging
 import sys
 from tqdm.auto import tqdm
+import os
 
 # Import the dataset and models defined above
 from dataloader import PartDataset
@@ -100,6 +101,27 @@ def f_score(pc_pred, pc_gt, threshold, mask_pred=None, mask_gt=None):
     f = 2 * precision * recall / (precision + recall + 1e-8)
     return f.mean()
 
+def save_checkpoint(model, optimizer, scheduler, epoch, path):
+    """Сохранить модель и оптимизаторы."""
+    state = {
+        'epoch': epoch,
+        'model_state': model.state_dict(),
+        'optimizer_state': optimizer.state_dict(),
+    }
+    if scheduler is not None:
+        state['scheduler_state'] = scheduler.state_dict()
+    torch.save(state, path)
+
+
+def load_checkpoint(path, model, optimizer, scheduler=None, map_location=None):
+    """Загрузить модель и оптимизаторы."""
+    checkpoint = torch.load(path, map_location=map_location)
+    model.load_state_dict(checkpoint['model_state'])
+    optimizer.load_state_dict(checkpoint['optimizer_state'])
+    if scheduler is not None and 'scheduler_state' in checkpoint:
+        scheduler.load_state_dict(checkpoint['scheduler_state'])
+    return checkpoint.get('epoch', 0)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train PartCrafter or baseline models")
     parser.add_argument('--model', type=str, choices=['partcrafter', 'shapeaspoints', 'pointcraft'], default='partcrafter', help="Which model to train")
@@ -124,6 +146,10 @@ if __name__ == "__main__":
     parser.add_argument('--unfreeze_backbone', dest='freeze_backbone', action='store_false', help='Train backbone weights')
     parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='Use pretrained ResNet weights (default)')
     parser.add_argument('--no_pretrained', dest='pretrained', action='store_false', help='Do not load pretrained weights')
+    parser.add_argument('--resume', type=str, default=None,
+                        help='Путь к файлу чекпоинта для продолжения обучения')
+    parser.add_argument('--save_every', type=int, default=1,
+                        help='Сохранять чекпоинт каждые N эпох')
     parser.set_defaults(freeze_backbone=True, pretrained=True)
     args = parser.parse_args()
 
@@ -181,9 +207,15 @@ if __name__ == "__main__":
     elif args.lr_schedule == 'cosine':
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
+    start_epoch = 1
+    if args.resume is not None and os.path.isfile(args.resume):
+        last_epoch = load_checkpoint(args.resume, model, optimizer, scheduler, map_location=args.device)
+        start_epoch = last_epoch + 1
+        print(f"Возобновляем обучение с эпохи {start_epoch}")
+
     # Training loop
     model.train()
-    for epoch in range(1, args.epochs+1):
+    for epoch in range(start_epoch, args.epochs + 1):
         total_loss = 0.0
         for batch in tqdm(train_loader, desc=f"Train {epoch}/{args.epochs}"):
             imgs, part_pts, shape_pts, part_mask = batch
@@ -243,11 +275,15 @@ if __name__ == "__main__":
         if scheduler is not None:
             scheduler.step()
         model.train()
-        # Save checkpoint periodically
-        if epoch % 10 == 0:
+        if args.save_every > 0 and epoch % args.save_every == 0:
             ckpt_path = f"{args.model}_epoch{epoch}.pth"
-            torch.save(model.state_dict(), ckpt_path)
-            logger.info(f"Saved checkpoint: {ckpt_path}")
+        if args.save_every > 0 and epoch % args.save_every == 0:
+            ckpt_path = f"{args.model}_epoch{epoch}.pth"
+            save_checkpoint(model, optimizer, scheduler, epoch, ckpt_path)
+            logger.info(f"Сохранён чекпоинт: {ckpt_path}")
+
     # Save final model
-    torch.save(model.state_dict(), f"{args.model}_final.pth")
-    logger.info("Training complete, model saved.")
+    ckpt_path = f"{args.model}_final.pth"
+    save_checkpoint(model, optimizer, scheduler, args.epochs, ckpt_path)
+    logger.info("Обучение завершено, финальная модель сохранена.")
+

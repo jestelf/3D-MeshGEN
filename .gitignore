@@ -21,3 +21,5 @@ ENV/
 .pytest_cache/
 htmlcov/
 
+ModelNet40.zip
+data/
